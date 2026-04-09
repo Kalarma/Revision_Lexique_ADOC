@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Master Lexique Pro - Désordonné</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --app-height: 100dvh;
+        }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #020617;
+            height: var(--app-height);
+            width: 100vw;
+            overflow: hidden;
+            color: #f8fafc;
+            margin: 0;
+            padding: 0;
+        }
+
+        #app {
+            height: var(--app-height);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .card-swipe {
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease, background-color 0.2s ease;
+            touch-action: none;
+            will-change: transform, opacity;
+            z-index: 10;
+        }
+
+        .swipe-right-out { transform: translateX(150vw) rotate(45deg) !important; opacity: 0 !important; }
+        .swipe-left-out { transform: translateX(-150vw) rotate(-45deg) !important; opacity: 0 !important; }
+        
+        .card-feedback-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 5;
+        }
+
+        @keyframes cardEntry {
+            from { opacity: 0; transform: scale(0.9) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-card-entry { animation: cardEntry 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .fade-in { animation: fadeIn 0.3s ease forwards; }
+    </style>
+</head>
+<body class="selection:bg-indigo-500/30">
+
+    <div id="app" class="max-w-md mx-auto w-full relative flex flex-col">
+        
+        <!-- MODAL DE CONFIRMATION -->
+        <div id="modal-exit" class="hidden fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-6">
+            <div class="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] w-full text-center shadow-2xl">
+                <h3 class="text-2xl font-extrabold text-white mb-4">Quitter ?</h3>
+                <p class="text-slate-400 mb-8 leading-relaxed">Ta progression est sauvegardée sur ton compte.</p>
+                <div class="flex flex-col gap-3">
+                    <button onclick="window.confirmExit(true)" class="w-full py-4 bg-rose-500 text-white font-bold rounded-2xl active:scale-95 transition-transform">Oui, quitter</button>
+                    <button onclick="window.confirmExit(false)" class="w-full py-4 bg-slate-800 text-slate-300 font-bold rounded-2xl active:scale-95 transition-transform">Continuer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHARGEMENT -->
+        <div id="loading" class="flex-grow flex flex-col items-center justify-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500"></div>
+            <p class="mt-4 text-slate-500 font-black uppercase tracking-widest text-[10px]">Mélange du lexique...</p>
+        </div>
+
+        <!-- ACCUEIL -->
+        <div id="screen-home" class="hidden flex-grow flex flex-col p-6 overflow-y-auto fade-in">
+            <header class="text-center py-6">
+                <h1 class="text-3xl font-black text-white tracking-tighter italic uppercase">Master <span class="text-indigo-500">Lexique</span></h1>
+            </header>
+
+            <div class="bg-slate-900/50 rounded-[2.5rem] p-8 border border-slate-800 text-center mb-6">
+                <div class="inline-flex items-center justify-center w-24 h-24 rounded-full bg-slate-950 mb-4 border-2 border-indigo-500/20 relative">
+                    <svg class="absolute inset-0 w-full h-full -rotate-90">
+                        <circle cx="48" cy="48" r="44" fill="transparent" stroke="#1e293b" stroke-width="4" />
+                        <circle id="mastery-circle" cx="48" cy="48" r="44" fill="transparent" stroke="#6366f1" stroke-width="4" stroke-dasharray="276" stroke-dashoffset="276" class="transition-all duration-1000" />
+                    </svg>
+                    <span id="global-mastery" class="text-2xl font-black text-white z-10">0%</span>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-1">Maîtrise Globale</h3>
+                <button onclick="window.showScreen('screen-progress')" class="text-indigo-400 text-[10px] font-black uppercase tracking-widest hover:text-indigo-300 transition-colors">
+                    Détail du progrès ➔
+                </button>
+            </div>
+
+            <div class="space-y-4 mb-8">
+                <button onclick="window.startSession('termToDef')" class="w-full flex items-center gap-4 p-5 bg-slate-900 rounded-3xl border border-slate-800 active:bg-slate-800 transition-colors text-left">
+                    <div class="shrink-0 w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-500 font-bold">A</div>
+                    <div>
+                        <h4 class="font-bold text-white text-sm">Classique</h4>
+                        <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Terme ➔ Définition</p>
+                    </div>
+                </button>
+
+                <button onclick="window.startSession('defToTerm')" class="w-full flex items-center gap-4 p-5 bg-slate-900 rounded-3xl border border-slate-800 active:bg-slate-800 transition-colors text-left">
+                    <div class="shrink-0 w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-500 font-bold">?</div>
+                    <div>
+                        <h4 class="font-bold text-white text-sm">Inverse</h4>
+                        <p class="text-slate-500 text-[10px] uppercase font-bold tracking-widest">Définition ➔ Terme</p>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- PROGRESSION -->
+        <div id="screen-progress" class="hidden flex-grow flex flex-col p-6 overflow-hidden fade-in">
+            <div class="flex items-center justify-between mb-6 shrink-0">
+                <button onclick="window.showScreen('screen-home')" class="text-slate-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    Retour
+                </button>
+                <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">Lexique Complet</h2>
+            </div>
+            <div id="progress-list" class="flex-grow overflow-y-auto space-y-3 pr-1 pb-10"></div>
+        </div>
+
+        <!-- JEU -->
+        <div id="screen-game" class="hidden flex-grow flex flex-col p-6 overflow-hidden fade-in">
+            <header class="flex justify-between items-center mb-4 shrink-0">
+                <button onclick="window.exitSession()" class="px-3 py-2 bg-rose-500/10 text-rose-500 rounded-lg font-black text-[9px] tracking-widest border border-rose-500/20 uppercase">
+                    Quitter
+                </button>
+                <div class="text-right">
+                    <p id="question-counter" class="text-[9px] font-black text-slate-500 uppercase tracking-widest">1/25</p>
+                    <div id="historical-stats" class="flex gap-2 justify-end mt-0.5"></div>
+                </div>
+            </header>
+
+            <div class="w-full bg-slate-900 h-1 rounded-full mb-6 shrink-0">
+                <div id="session-progress-bar" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+
+            <div class="flex-grow flex flex-col justify-center relative min-h-0">
+                <div id="swipe-hints" class="absolute inset-0 flex justify-between items-center pointer-events-none opacity-0 transition-opacity z-20 px-4">
+                    <div class="p-4 rounded-full bg-rose-500/40 text-rose-500 border border-rose-500/50">✕</div>
+                    <div class="p-4 rounded-full bg-emerald-500/40 text-emerald-500 border border-emerald-500/50">✓</div>
+                </div>
+
+                <div id="card-element" class="card-swipe bg-slate-900 rounded-[2.5rem] border border-slate-800 p-8 flex flex-col items-center justify-center text-center shadow-2xl relative h-full w-full max-h-[450px]">
+                    <div id="card-overlay" class="card-feedback-overlay"></div>
+                    <div class="flex flex-col gap-6 w-full relative z-10">
+                        <h2 id="display-text" class="text-lg font-bold text-white leading-snug"></h2>
+                        <div id="answer-box" class="hidden pt-6 border-t border-slate-800/50 fade-in">
+                            <p id="answer-text" class="text-slate-400 italic text-sm leading-relaxed"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="game-controls" class="pt-6 shrink-0 pb-2">
+                <button id="btn-reveal" onclick="window.revealAnswer()" class="w-full py-4 bg-indigo-600 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl active:scale-95 transition-transform">
+                    Vérifier
+                </button>
+                <div id="swipe-instruction" class="hidden text-center mt-3">
+                    <p class="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center justify-center gap-3">
+                        <span class="text-rose-500/70">← Faux</span>
+                        <span class="w-1 h-1 rounded-full bg-slate-800"></span>
+                        <span class="text-emerald-500/70">Juste →</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RÉSUMÉ -->
+        <div id="screen-summary" class="hidden flex-grow flex flex-col items-center justify-center p-6 text-center space-y-8 fade-in">
+            <h2 class="text-3xl font-black text-white uppercase tracking-tighter">Terminé !</h2>
+            <div class="w-full grid grid-cols-2 gap-3">
+                <div class="p-6 bg-emerald-500/5 rounded-3xl border border-emerald-500/10 text-emerald-400 font-black text-3xl" id="summary-correct">0</div>
+                <div class="p-6 bg-rose-500/5 rounded-3xl border border-rose-500/10 text-rose-400 font-black text-3xl" id="summary-wrong">0</div>
+            </div>
+            <button onclick="window.showScreen('screen-home')" class="w-full py-5 bg-white text-slate-950 font-black uppercase rounded-2xl active:scale-95 transition-transform">Continuer</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'lexique-mco-random';
+
+        // LEXIQUE COMPLET - ORDRE TOTALEMENT MÉLANGÉ (132 TERMES)
+        const rawLexicon = [
+            { id: "44", term: "Cross-canal", def: "Intégration des canaux pour fluidifier le parcours client." },
+            { id: "107", term: "Prix psychologique", def: "Prix d'acceptabilité maximale par les clients." },
+            { id: "32", term: "CPC / CPM", def: "Coût Par Clic ou Pour Mille affichages publicitaires." },
+            { id: "131", term: "Zone de chalandise", def: "Zone d'attractivité géographique d'un point de vente." },
+            { id: "50", term: "Démarque inconnue", def: "Pertes inexplicables (vols, erreurs de stock)." },
+            { id: "12", term: "Animation commerciale", def: "Promotion qui dynamise l'unité et pousse le produit vers le client." },
+            { id: "86", term: "Loi de Pareto", def: "Règle des 20/80 (20% causes = 80% effets)." },
+            { id: "104", term: "Phygitalisation", def: "Fusion du physique et du digital pour améliorer l'expérience." },
+            { id: "11", term: "Analyse PESTEL", def: "Politique, Économique, Sociologique, Techno, Éco, Légal." },
+            { id: "26", term: "Click and collect", def: "Commande en ligne et retrait physique en point de vente." },
+            { id: "49", term: "Démarque connue", def: "Pertes enregistrées régulièrement (casse, DLC)." },
+            { id: "57", term: "Écrémage", def: "Prix élevé pour viser une forte rentabilité unitaire." },
+            { id: "112", term: "RGPD", def: "Loi européenne de protection des données personnelles." },
+            { id: "21", term: "Category management", def: "Organisation par univers de consommation distributeur/industriel." },
+            { id: "130", term: "Yield management", def: "Prix variant en temps réel selon la demande." },
+            { id: "3", term: "Agencement", def: "Aménagement de l'espace pour optimiser l'ergonomie et la mise en valeur." },
+            { id: "91", term: "Marketing mix", def: "Politiques Produit, Prix, Place, Promotion (4P)." },
+            { id: "118", term: "Seuil de rentabilité", def: "Volume où l'entreprise ne fait ni perte ni profit." },
+            { id: "58", term: "Élasticité", def: "Variation de la demande suite à une variation de prix." },
+            { id: "106", term: "Positionnement", def: "Place dans l'esprit du client face aux concurrents." },
+            { id: "1", term: "Accords de référencement", def: "Relation producteur/distributeur portant sur produit, prix, conditions." },
+            { id: "94", term: "MDD", def: "Marque De Distributeur fabriquée spécifiquement pour une enseigne." },
+            { id: "14", term: "Assortiment", def: "Ensemble des produits et services proposés à la vente." },
+            { id: "103", term: "Persona", def: "Représentation fictive du client cible." },
+            { id: "34", term: "Concurrence directe", def: "Entreprises offrant des produits/services similaires." },
+            { id: "53", term: "Digital in store", def: "Outils digitaux enrichissant l'expérience en magasin." },
+            { id: "36", term: "CGV", def: "Conditions Générales de Vente (obligation en B2B)." },
+            { id: "132", term: "Zone chaude / froide", def: "Zones fréquentées ou délaissées du magasin." },
+            { id: "74", term: "Image de marque", def: "Représentations mentales associées à une marque." },
+            { id: "22", term: "Charges fixes", def: "Coûts indépendants de l'activité (loyer, assurances, salaires)." },
+            { id: "124", term: "Taux de marque", def: "Part de marge commerciale dans le prix de vente HT." },
+            { id: "24", term: "Circuit de distribution", def: "Chemin du produit : Direct, Court ou Long." },
+            { id: "111", term: "PLV", def: "Publicité sur le Lieu de Vente (présentoirs, affiches)." },
+            { id: "29", term: "CDAC", def: "Commission autorisant les projets d'implantation commerciale." },
+            { id: "119", term: "SRP", def: "Seuil de Revente à Perte (limite légale de prix bas)." },
+            { id: "13", term: "Animation commerciale", def: "Technique pour dynamiser l'unité et pousser le produit." },
+            { id: "92", term: "Marketing sensoriel", def: "Usage des sens pour influencer le comportement d'achat." },
+            { id: "71", term: "Geofencing", def: "Messages envoyés lors de l'entrée dans une zone géographique." },
+            { id: "56", term: "ECR", def: "Efficient Consumer Response : partenariat industrie/commerce." },
+            { id: "47", term: "Cross-selling", def: "Vente de produits complémentaires au produit principal." },
+            { id: "83", term: "Linéaire développé", def: "Linéaire au sol multiplié par le nombre de niveaux." },
+            { id: "2", term: "Affichage digital", def: "Écrans numériques permettant un affichage dynamique." },
+            { id: "128", term: "Up-selling", def: "Proposition de gamme supérieure lors de l'achat." },
+            { id: "10", term: "Analyse ABC", def: "Segmentation : A (20%=80%), B (30%=15%), C (50%=5%)." },
+            { id: "127", term: "Trade marketing", def: "Actions communes fabricant/distributeur sur des intérêts convergents." },
+            { id: "68", term: "Frontale", def: "Nombre de produits faisant face au client en linéaire." },
+            { id: "105", term: "Planogramme", def: "Schéma de la place des références en linéaire." },
+            { id: "5", term: "Alignement", def: "Fixation d'un prix identique aux concurrents directs." },
+            { id: "30", term: "CNIL", def: "Instance de contrôle pour la protection des données personnelles." },
+            { id: "117", term: "SEA / SEO / SEM", def: "Référencement payant, naturel ou global sur les moteurs." },
+            { id: "39", term: "Cookie", def: "Fichier traceur déposé sur l'ordinateur du visiteur." },
+            { id: "122", term: "Sourcing", def: "Recherche et évaluation de fournisseurs pour un besoin." },
+            { id: "23", term: "Charges variables", def: "Coûts évoluant selon le volume d'activité." },
+            { id: "9", term: "Ampleur", def: "Nombre total de références (Largeur x Profondeur)." },
+            { id: "48", term: "Cybersécurité", def: "Protection contre les risques informatiques et cyberattaques." },
+            { id: "65", term: "EEG", def: "Étiquette Électronique de Gondole." },
+            { id: "15", term: "Attitude", def: "Évaluation personnelle (cognitif, affectif, conatif) face à une marque." },
+            { id: "80", term: "KPI", def: "Key Performance Indicators (Indicateurs clés de performance)." },
+            { id: "75", term: "Inbound marketing", def: "Attirer naturellement l'internaute via des contenus utiles." },
+            { id: "41", term: "Coût de revient", def: "Prix d'achat + frais d'achat - remises." },
+            { id: "99", term: "Omnicanalité", def: "Synergie de tous les points de contact clients." },
+            { id: "62", term: "Enseigne commerciale", def: "Appellation et support d'identification physique d'un point de vente." },
+            { id: "7", term: "Allée principale", def: "Allée située au centre, parallèle à la ligne de caisses." },
+            { id: "96", term: "Motivations", def: "Forces positives poussant à l'achat (hédonistes, oblatives...)." },
+            { id: "113", term: "Rentabilité", def: "Capacité à dégager des bénéfices par rapport aux capitaux." },
+            { id: "108", term: "Processus d'achat", def: "Besoin, Info, Comparaison, Décision, Évaluation." },
+            { id: "114", term: "Résultat", def: "Ressources restant à l'entreprise après déduction des charges." },
+            { id: "121", term: "Social commerce", def: "Réseaux sociaux utilisés directement pour vendre." },
+            { id: "19", term: "Besoin", def: "Manque poussant à agir (Pyramide de Maslow)." },
+            { id: "109", term: "Produit", def: "Bien ou service proposé pour satisfaire un besoin contre un prix." },
+            { id: "46", term: "Cross-marchandisage", def: "Produit hors rayon habituel, près d'un complémentaire." },
+            { id: "51", term: "Design", def: "Apparence visuelle séduisante et fonctionnelle d'un produit." },
+            { id: "123", term: "Taux de clic", def: "Pourcentage de clics par rapport au nombre d'affichages." },
+            { id: "6", term: "Allée pénétrante", def: "Chemin d'entrée des clients dans le point de vente." },
+            { id: "116", term: "Rétroplanning", def: "Planification inversée partant de la date de fin du projet." },
+            { id: "4", term: "Ajustement linéaire", def: "Modèle pour établir des estimations futures via les données passées." },
+            { id: "54", term: "E-commerce", def: "Transactions commerciales via interfaces électroniques." },
+            { id: "125", term: "Taux de rebond", def: "Visiteurs quittant le site après une seule page consultée." },
+            { id: "101", term: "Pénétration", def: "Prix bas pour toucher un maximum de clients rapidement." },
+            { id: "89", term: "Marge arrière", def: "Avantages fournisseur pour services de mise en avant." },
+            { id: "33", term: "Comportement", def: "Étude des processus de décision du consommateur." },
+            { id: "16", term: "Back office", def: "Espaces réservés au personnel (réserves, bureaux)." },
+            { id: "77", term: "Indice de sensibilité", def: "Rentabilité d'une offre par rapport à sa place occupée." },
+            { id: "93", term: "Marque ombrelle", def: "Marque couvrant des produits de catégories différentes." },
+            { id: "82", term: "Largeur", def: "Nombre de familles de produits différentes dans l'assortiment." },
+            { id: "60", term: "E-mailing", def: "Envoi de courrier électronique à un ensemble de cibles." },
+            { id: "28", term: "Commerce équitable", def: "Système d'échanges éthiques visant une égalité Nord-Sud." },
+            { id: "110", term: "Profondeur", def: "Nombre de références par famille de produits." },
+            { id: "129", term: "V-commerce", def: "Commerce généré via des applications de réalité virtuelle." },
+            { id: "97", term: "Multicanal", def: "Usage alterné de canaux physiques et virtuels pour la vente." },
+            { id: "84", term: "Logo", def: "Représentation graphique d'une marque ou enseigne." },
+            { id: "35", term: "Concurrence indirecte", def: "Offre différente mais répondant au même besoin." },
+            { id: "69", term: "Front office", def: "Surface de vente accessible aux clients." },
+            { id: "59", term: "Emballage", def: "Protection, stockage et transport du produit." },
+            { id: "115", term: "Retargeting", def: "Publicité reciblée selon le parcours internet du client." },
+            { id: "120", term: "Signes de qualité", def: "Logos officiels (AOP, Label Rouge) certifiant la qualité." },
+            { id: "100", term: "POEM", def: "Paid, Owned, Earned Media : types d'exposition médiatique." },
+            { id: "18", term: "Benchmarking", def: "Étude des techniques d'organisation d'autres entreprises." },
+            { id: "70", term: "Gamme", def: "Ensemble des produits satisfaisant un même besoin." },
+            { id: "40", term: "Coopération commerciale", def: "Opérations conjointes distributeur/fabricant rémunérées." },
+            { id: "8", term: "Allée secondaire", def: "Allée plus étroite permettant d'accéder aux rayons." },
+            { id: "61", term: "E-merchandising", def: "Optimisation de la présentation sur sites marchands." },
+            { id: "45", term: "Cross-device", def: "Usage alterné de différents appareils pour un achat." },
+            { id: "55", term: "Écran interactif", def: "Écran tactile permettant au client de faire des recherches." },
+            { id: "126", term: "T-commerce", def: "Achats réalisés via une télévision connectée." },
+            { id: "17", term: "Balisage de linéaire", def: "Équiper un linéaire d'éléments d'information." },
+            { id: "38", term: "Consumérisme", def: "Action collective pour s'informer et défendre ses droits." },
+            { id: "72", term: "Géomarketing", def: "Marketing utilisant les infos de géolocalisation clients." },
+            { id: "87", term: "Loi LME", def: "Seuil de 1000m² pour dossier CDAC obligatoire." },
+            { id: "102", term: "Perception", def: "Interprétation des stimuli via les cinq sens." },
+            { id: "25", term: "Circulation", def: "Déplacements et flux des clients dans le point de vente." },
+            { id: "78", term: "ILV", def: "Information sur le Lieu de Vente (signalétique)." },
+            { id: "98", term: "NCA / NCR", def: "Non-Consommateur Absolu ou Relatif (prospect potentiel)." },
+            { id: "27", term: "Coefficient saisonnier", def: "Mesure de la saisonnalité des ventes sur l'année." },
+            { id: "88", term: "Maintenance", def: "Réglage et contrôle régulier des équipements du point de vente." },
+            { id: "52", term: "Diagnostic stratégique", def: "Phase d'analyse interne/externe pour aide à la décision." },
+            { id: "90", term: "Marge commerciale", def: "Différence entre prix de vente HT et coût d'achat HT." },
+            { id: "85", term: "Loi ALUR", def: "Loi soumettant les drives à autorisation d'exploitation." },
+            { id: "81", term: "Landing page", def: "Page web d'arrivée conçue pour une action précise." },
+            { id: "79", term: "INPI", def: "Institut protégeant marques, brevets et modèles en France." },
+            { id: "76", term: "Incident", def: "Événement non anticipé pouvant avoir des conséquences." },
+            { id: "73", term: "Hauteur", def: "Niveau de prix de l'assortiment (Bas, Moyen, Élevé)." },
+            { id: "67", term: "Freins", def: "Forces négatives empêchant l'achat (peurs, inhibitions)." },
+            { id: "66", term: "Facteurs explicatifs", def: "Éléments décrivant l'individu (âge, revenu, style de vie)." },
+            { id: "64", term: "E-réputation", def: "Image d'une marque sur internet et supports numériques." },
+            { id: "63", term: "Entretien", def: "Dépenses pour maintenir les actifs en bon état." },
+            { id: "43", term: "Couverture d'un risque", def: "Protection via assurances ou garanties contractuelles." },
+            { id: "37", term: "Consommaction", def: "Défense active des intérêts des consommateurs." },
+            { id: "31", term: "Communication hors médias", def: "Moyens de communication n'utilisant pas les médias de masse." }
+        ];
+
+        // Fonction pour mélanger l'array au chargement pour plus de variété
+        const fullLexicon = [...rawLexicon].sort(() => Math.random() - 0.5);
+
+        let userStats = {};
+        let currentUser = null;
+        let currentSession = [];
+        let sessionIndex = 0;
+        let sessionResults = { correct: 0, wrong: 0 };
+        let sessionMode = '';
+
+        let startX = 0, currentX = 0, isDragging = false;
+        const card = document.getElementById('card-element');
+        const cardOverlay = document.getElementById('card-overlay');
+        const swipeHints = document.getElementById('swipe-hints');
+
+        window.showScreen = (id) => {
+            ['loading', 'screen-home', 'screen-game', 'screen-summary', 'screen-progress'].forEach(s => {
+                const el = document.getElementById(s);
+                if (el) el.classList.add('hidden');
+            });
+            document.getElementById(id).classList.remove('hidden');
+            if (id === 'screen-progress') updateProgressUI();
+            if (id === 'screen-home') updateHomeUI();
+        };
+
+        const updateHomeUI = () => {
+            const masteredCount = fullLexicon.filter(t => {
+                const s = userStats[t.id] || { c: 0, w: 0 };
+                return s.c > s.w && s.c >= 2;
+            }).length;
+            const percentage = Math.round((masteredCount / fullLexicon.length) * 100);
+            document.getElementById('global-mastery').innerText = `${percentage}%`;
+            document.getElementById('mastery-circle').style.strokeDashoffset = 276 - (276 * percentage / 100);
+        };
+
+        const updateProgressUI = () => {
+            const list = document.getElementById('progress-list');
+            list.innerHTML = '';
+            // On affiche le progrès dans l'ordre du lexique mélangé
+            fullLexicon.forEach(item => {
+                const s = userStats[item.id] || { c: 0, w: 0 };
+                const ratio = s.c + s.w > 0 ? Math.round((s.c / (s.c + s.w)) * 100) : 0;
+                const div = document.createElement('div');
+                div.className = "p-4 bg-slate-900 rounded-2xl border border-slate-800";
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <h4 class="font-bold text-white text-[11px]">${item.term}</h4>
+                        <span class="text-[8px] font-black text-indigo-500 uppercase">${ratio}%</span>
+                    </div>
+                    <p class="text-slate-500 text-[9px] leading-tight mb-2">${item.def}</p>
+                `;
+                list.appendChild(div);
+            });
+        };
+
+        window.startSession = (mode) => {
+            sessionMode = mode; sessionIndex = 0; sessionResults = { correct: 0, wrong: 0 };
+            
+            // 70% nouveaux/erreurs, 30% révision
+            const scored = fullLexicon.map(item => {
+                const s = userStats[item.id] || { c: 0, w: 0 };
+                return { ...item, p: (s.w + 1) / (s.c + 0.5), isMastered: s.c >= 2 && s.c > s.w };
+            });
+
+            const toLearn = scored.filter(i => !i.isMastered).sort((a,b) => b.p - a.p).slice(0, 18);
+            const toReview = scored.filter(i => i.isMastered).sort(() => Math.random() - 0.5).slice(0, 7);
+
+            currentSession = [...toLearn, ...toReview].sort(() => Math.random() - 0.5);
+            window.showScreen('screen-game');
+            updateQuestionUI();
+        };
+
+        const updateQuestionUI = () => {
+            const item = currentSession[sessionIndex];
+            const stats = userStats[item.id] || { c: 0, w: 0 };
+            card.classList.remove('swipe-right-out', 'swipe-left-out', 'animate-card-entry');
+            card.style.transform = "translateX(0) rotate(0) scale(1)"; card.style.opacity = "1"; cardOverlay.style.opacity = "0";
+            void card.offsetWidth; card.classList.add('animate-card-entry');
+
+            document.getElementById('question-counter').innerText = `${sessionIndex+1}/${currentSession.length}`;
+            document.getElementById('session-progress-bar').style.width = `${(sessionIndex / currentSession.length) * 100}%`;
+            document.getElementById('historical-stats').innerHTML = `<span class="text-emerald-500">${stats.c} ✓</span> <span class="text-rose-500">${stats.w} ✕</span>`;
+            document.getElementById('display-text').innerText = sessionMode === 'termToDef' ? item.term : item.def;
+            document.getElementById('answer-text').innerText = sessionMode === 'termToDef' ? item.def : item.term;
+            document.getElementById('answer-box').classList.add('hidden');
+            document.getElementById('btn-reveal').classList.remove('hidden');
+            document.getElementById('swipe-instruction').classList.add('hidden');
+            isDragging = false; startX = 0; currentX = 0;
+        };
+
+        window.revealAnswer = () => {
+            document.getElementById('answer-box').classList.remove('hidden');
+            document.getElementById('btn-reveal').classList.add('hidden');
+            document.getElementById('swipe-instruction').classList.remove('hidden');
+        };
+
+        const processValidation = async (isCorrect) => {
+            const item = currentSession[sessionIndex];
+            if (!userStats[item.id]) userStats[item.id] = { c: 0, w: 0 };
+            if (isCorrect) { userStats[item.id].c++; sessionResults.correct++; }
+            else { userStats[item.id].w++; sessionResults.wrong++; }
+            if (currentUser) setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'statistics', 'v1'), { stats: userStats }, { merge: true });
+            sessionIndex++;
+            setTimeout(() => {
+                if (sessionIndex < currentSession.length) updateQuestionUI();
+                else {
+                    document.getElementById('summary-correct').innerText = sessionResults.correct;
+                    document.getElementById('summary-wrong').innerText = sessionResults.wrong;
+                    window.showScreen('screen-summary');
+                }
+            }, 300);
+        };
+
+        window.exitSession = () => document.getElementById('modal-exit').classList.remove('hidden');
+        window.confirmExit = (s) => { document.getElementById('modal-exit').classList.add('hidden'); if(s) window.showScreen('screen-home'); };
+
+        const handleDragStart = (e) => { if (document.getElementById('answer-box').classList.contains('hidden')) return; isDragging = true; startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX; currentX = startX; card.style.transition = "none"; card.classList.remove('animate-card-entry'); };
+        const handleDragMove = (e) => { if (!isDragging) return; currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX; const dx = currentX - startX; card.style.transform = `translateX(${dx}px) rotate(${dx / 20}deg)`; swipeHints.style.opacity = Math.min(Math.abs(dx) / 80, 1); swipeHints.querySelector('.text-rose-500').parentElement.style.opacity = dx < 0 ? 1 : 0; swipeHints.querySelector('.text-emerald-500').parentElement.style.opacity = dx > 0 ? 1 : 0; cardOverlay.style.opacity = Math.min(Math.abs(dx) / 200, 0.3); cardOverlay.style.backgroundColor = dx > 0 ? "#10b981" : "#f43f5e"; if (Math.abs(dx) > 10 && e.cancelable) e.preventDefault(); };
+        const handleDragEnd = () => { if (!isDragging) return; isDragging = false; const dx = currentX - startX; card.style.transition = "transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease"; swipeHints.style.opacity = "0"; cardOverlay.style.opacity = "0"; if (dx > 80) { card.classList.add('swipe-right-out'); processValidation(true); } else if (dx < -80) { card.classList.add('swipe-left-out'); processValidation(false); } else { card.style.transform = "translateX(0) rotate(0)"; } };
+
+        card.addEventListener('mousedown', handleDragStart); card.addEventListener('touchstart', handleDragStart, { passive: true });
+        window.addEventListener('mousemove', handleDragMove); window.addEventListener('touchmove', handleDragMove, { passive: false });
+        window.addEventListener('mouseup', handleDragEnd); window.addEventListener('touchend', handleDragEnd);
+
+        onAuthStateChanged(auth, async (u) => { if (u) { currentUser = u; const d = await getDoc(doc(db, 'artifacts', appId, 'users', u.uid, 'statistics', 'v1')); userStats = d.exists() ? d.data().stats || {} : {}; window.showScreen('screen-home'); } });
+        window.onload = async () => { if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth)); else await signInAnonymously(auth); };
+    </script>
+</body>
+</html>
