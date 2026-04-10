@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Master Lexique Pro - V2.1.3</title>
+    <title>Master Lexique Pro - V2.1.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
@@ -76,9 +76,9 @@
 
     <div id="app" class="w-full relative flex flex-col mx-auto">
         
-        <!-- BADGE V2.1.3 -->
+        <!-- BADGE Version -->
         <div id="version-badge" class="absolute top-6 left-6 z-50 transition-opacity duration-300">
-            <span class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 font-black text-xs rounded-lg border border-indigo-500/30 shadow-lg shadow-indigo-500/10">V2.1.3</span>
+            <span class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 font-black text-xs rounded-lg border border-indigo-500/30 shadow-lg shadow-indigo-500/10">V2.1.4</span>
         </div>
 
         <!-- MODALS -->
@@ -621,11 +621,20 @@
             const pBlue = (cBlue / totalItems) * C;
             const pGreen = (cGreen / totalItems) * C;
 
-            document.getElementById('circle-red').style.strokeDasharray = `${pRed} ${C}`;
-            document.getElementById('circle-blue').style.strokeDasharray = `${pBlue} ${C}`;
-            document.getElementById('circle-blue').style.strokeDashoffset = `-${pRed}`;
-            document.getElementById('circle-green').style.strokeDasharray = `${pGreen} ${C}`;
-            document.getElementById('circle-green').style.strokeDashoffset = `-${pRed + pBlue}`;
+            const circleRed = document.getElementById('circle-red');
+            const circleBlue = document.getElementById('circle-blue');
+            const circleGreen = document.getElementById('circle-green');
+
+            // Masquer les cercles si la valeur est 0 pour éviter le point de rendu lié au stroke-linecap
+            circleRed.style.opacity = cRed === 0 ? '0' : '1';
+            circleBlue.style.opacity = cBlue === 0 ? '0' : '1';
+            circleGreen.style.opacity = cGreen === 0 ? '0' : '1';
+
+            circleRed.style.strokeDasharray = `${pRed} ${C}`;
+            circleBlue.style.strokeDasharray = `${pBlue} ${C}`;
+            circleBlue.style.strokeDashoffset = `-${pRed}`;
+            circleGreen.style.strokeDasharray = `${pGreen} ${C}`;
+            circleGreen.style.strokeDashoffset = `-${pRed + pBlue}`;
 
             window.setMode(isDesktopMode ? 'desktop' : 'mobile');
         };
