@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Master Lexique Pro - V2.1</title>
+    <title>Master Lexique Pro - V2.1.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
@@ -76,9 +76,9 @@
 
     <div id="app" class="w-full relative flex flex-col mx-auto">
         
-        <!-- BADGE V2.1 -->
+        <!-- BADGE V2.1.3 -->
         <div id="version-badge" class="absolute top-6 left-6 z-50 transition-opacity duration-300">
-            <span class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 font-black text-xs rounded-lg border border-indigo-500/30 shadow-lg shadow-indigo-500/10">V2.1</span>
+            <span class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 font-black text-xs rounded-lg border border-indigo-500/30 shadow-lg shadow-indigo-500/10">V2.1.3</span>
         </div>
 
         <!-- MODALS -->
@@ -309,11 +309,23 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         import { getFirestore, doc, setDoc, getDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'lexique-mco-v2-1';
+        // Gérer les erreurs d'initialisation Firebase pour l'export GitHub avec Fallback LocalStorage
+        let app, auth, db;
+        let isFirebaseAvailable = false;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'lexique-mco-v2-1-3';
+        const LOCAL_STORAGE_KEY = 'lexique_pro_stats_v2';
+
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                isFirebaseAvailable = true;
+            }
+        } catch (error) {
+            console.warn("Firebase configuration non détectée. L'application tourne en mode hors-ligne (LocalStorage).");
+        }
 
         const lexiconItems = [
             { id: "1", term: "Accords de référencement", def: "Relation producteur/distributeur sur produit, prix, conditions, livraisons." },
@@ -566,7 +578,7 @@
             
             const badge = document.getElementById('version-badge');
             if (badge) {
-                // Cache le badge "V2.1" pour le jeu ou la progression
+                // Cache le badge pour le jeu ou la progression
                 if (id === 'screen-game' || id === 'screen-progress') badge.classList.add('hidden');
                 else badge.classList.remove('hidden');
             }
@@ -763,8 +775,10 @@
             if (isCorrect) { userStats[item.id].c++; sessionResults.correct++; }
             else { userStats[item.id].w++; sessionResults.wrong++; }
             
-            if (currentUser) {
+            if (isFirebaseAvailable && currentUser) {
                 setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'statistics', 'v1'), { stats: userStats }, { merge: true }).catch(() => {});
+            } else if (!isFirebaseAvailable) {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(userStats));
             }
 
             sessionIndex++;
@@ -796,11 +810,13 @@
             if (type === 'exit' && confirmed) {
                 window.showScreen('screen-home');
             } else if (type === 'reset' && confirmed) {
-                if (currentUser) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'statistics', 'v1'));
-                    userStats = {};
-                    updateHomeUI();
+                if (isFirebaseAvailable && currentUser) {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'statistics', 'v1')).catch(()=>{});
+                } else if (!isFirebaseAvailable) {
+                    localStorage.removeItem(LOCAL_STORAGE_KEY);
                 }
+                userStats = {};
+                updateHomeUI();
             }
         };
 
@@ -845,20 +861,43 @@
         window.addEventListener('mouseup', handleDragEnd);
         window.addEventListener('touchend', handleDragEnd);
 
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUser = user;
-                const d = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'statistics', 'v1'));
-                userStats = d.exists() ? d.data().stats || {} : {};
-                window.showScreen('screen-home');
+        function loadLocalStats() {
+            try {
+                const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (saved) {
+                    userStats = JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error("Erreur de lecture du localStorage", e);
             }
-        });
+        }
 
         window.onload = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
+            if (isFirebaseAvailable) {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token).catch(() => signInAnonymously(auth));
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            currentUser = user;
+                            try {
+                                const d = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'statistics', 'v1'));
+                                userStats = d.exists() ? d.data().stats || {} : {};
+                            } catch(e) {}
+                            window.showScreen('screen-home');
+                        }
+                    });
+                } catch (e) {
+                    console.error("Auth failed", e);
+                    loadLocalStats();
+                    window.showScreen('screen-home');
+                }
             } else {
-                await signInAnonymously(auth);
+                loadLocalStats();
+                window.showScreen('screen-home');
             }
         };
     </script>
